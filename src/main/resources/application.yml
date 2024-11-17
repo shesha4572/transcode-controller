@@ -1,1 +1,10 @@
-spring.application.name=transcode-controller
+spring:
+  application:
+    name: "transcode-controller"
+  data:
+    mongodb:
+      uri: ${MONGO_DB_URL}
+      database: ${MONGO_DB_NAME}
+      auto-index-creation: true
+    redis:
+      port: 6379
