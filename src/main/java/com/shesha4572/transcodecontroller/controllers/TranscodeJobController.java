@@ -18,7 +18,9 @@ public class TranscodeJobController {
 
     @PostMapping("/newJob")
     public ResponseEntity<?> createNewTranscodeJob(@RequestBody TranscodeJobRequestModel jobRequest){
-        transcodeJobService.registerNewTranscodeJob(jobRequest);
-        return ResponseEntity.ok().build();
+        if(transcodeJobService.registerNewTranscodeJob(jobRequest)) {
+            return ResponseEntity.ok().build();
+        }
+        return ResponseEntity.internalServerError().build();
     }
 }
