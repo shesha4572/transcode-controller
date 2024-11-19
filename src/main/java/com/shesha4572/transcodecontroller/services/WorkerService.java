@@ -2,6 +2,7 @@ package com.shesha4572.transcodecontroller.services;
 
 import com.shesha4572.transcodecontroller.entities.TranscodeJobTask;
 import com.shesha4572.transcodecontroller.entities.WorkerPod;
+import com.shesha4572.transcodecontroller.models.WorkerFinishTaskModel;
 import com.shesha4572.transcodecontroller.models.WorkerPodHeartBeat;
 import com.shesha4572.transcodecontroller.repositories.TranscodeJobTaskRepository;
 import com.shesha4572.transcodecontroller.repositories.WorkerPodRepository;
@@ -71,6 +72,26 @@ public class WorkerService {
             }
             workerPodRepository.save(workerPod);
         });
+    }
+
+    public void setWorkerAsAvailable(WorkerFinishTaskModel workerFinishTask){
+        if(workerPodRepository.existsById(workerFinishTask.getPodName()) && taskRepository.existsById(workerFinishTask.getAssignedTaskId())){
+            log.info("Worker {} has finished task #{}" , workerFinishTask.getPodName() , workerFinishTask.getAssignedTaskId());
+            WorkerPod worker = workerPodRepository.findById(workerFinishTask.getPodName()).get();
+            worker.setIsAssignedTask(Boolean.FALSE);
+            worker.setAssignedTaskId("");
+            worker.setLastPinged(LocalDateTime.now());
+            worker.setIsAssumedAlive(Boolean.TRUE);
+            workerPodRepository.save(worker);
+
+            TranscodeJobTask transcodeJobTask = taskRepository.findById(workerFinishTask.getAssignedTaskId()).get();
+            transcodeJobTask.setIsAssignedToWorker(Boolean.FALSE);
+            transcodeJobTask.setAssignedWorkerNodeId("");
+            transcodeJobTask.setTaskCompleted(Boolean.TRUE);
+            transcodeJobTask.setTaskCompletionTime(LocalDateTime.now());
+            transcodeJobTask.setMpdFileId(workerFinishTask.getMpdName());
+            taskRepository.save(transcodeJobTask);
+        }
     }
 
 }
