@@ -66,12 +66,16 @@ public class TranscodeJobService {
         LocalTime videoLength = videoTranscodeRequest.getDurationVideo();
         LocalTime start = LocalTime.of(0 , 0 ,0);
         while (videoLength.isAfter(start)){
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+            start = LocalTime.parse(start.format(formatter));
             TranscodeJobTask transcodeJobTask = TranscodeJobTask.builder()
                     .taskId(RandomStringUtils.randomAlphanumeric(10))
                     .taskCreationTime(LocalDateTime.now())
                     .videoInternalFileId(videoTranscodeRequest.getVideoInternalFileId())
                     .taskCompleted(Boolean.FALSE)
+                    .isAssignedToWorker(Boolean.FALSE)
                     .startTime(start)
+                    .assignedWorkerNodeId("")
                     .endTime(start.plus(optimalSlice).isAfter(videoLength) ? videoLength : start.plus(optimalSlice))
                     .build();
             log.info("Task #{} of Video #{} created with Start Time : {} , End Time : {}" , transcodeJobTask.getTaskId() , videoTranscodeRequest.getVideoInternalFileId() , transcodeJobTask.getStartTime() , transcodeJobTask.getEndTime());
