@@ -24,6 +24,8 @@ public class TranscodeJobTask {
     public LocalDateTime taskCompletionTime;
     public LocalTime startTime;
     public LocalTime endTime;
+    @Indexed
+    public Boolean isAssignedToWorker;
     public String assignedWorkerNodeId;
     public String mpdFileId;
 }
