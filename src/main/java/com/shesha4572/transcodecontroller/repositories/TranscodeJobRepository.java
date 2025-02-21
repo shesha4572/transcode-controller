@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TranscodeJobRepository extends MongoRepository<VideoTranscodeRequest, String> {
+    Iterable<VideoTranscodeRequest> findAllByIsJobComplete(Boolean flag);
 }
