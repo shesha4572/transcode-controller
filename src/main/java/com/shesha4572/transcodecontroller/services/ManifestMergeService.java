@@ -1,6 +1,7 @@
 package com.shesha4572.transcodecontroller.services;
 
 import com.shesha4572.transcodecontroller.entities.TranscodeJobTask;
+import com.shesha4572.transcodecontroller.entities.VideoTranscodeRequest;
 import com.shesha4572.transcodecontroller.repositories.TranscodeJobRepository;
 import com.shesha4572.transcodecontroller.repositories.TranscodeJobTaskRepository;
 import lombok.RequiredArgsConstructor;
@@ -9,13 +10,20 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
-
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.InputStream;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Component
@@ -30,16 +38,43 @@ public class ManifestMergeService {
     public void checkAllTasksDone(){
         jobRepository.findAllByIsJobComplete(Boolean.FALSE).forEach(job -> {
             if(taskRepository.countByVideoInternalFileIdAndTaskCompleted(job.getVideoInternalFileId() , Boolean.FALSE) == 0){
-                log.info("Video #{} transcode has finished. Will merge manifest files now " , job.getVideoInternalFileId());//TODO mergeMPD
+                log.info("Video #{} transcode has finished. Will merge manifest files now " , job.getVideoInternalFileId());
+                try {
+                    if(!this.mergeMPD(job.getVideoInternalFileId())){
+                        throw new Exception();
+                    }
+                } catch (Exception e) {
+                    log.info("Merge MPD of video {} failed. Will retry later" , job.getVideoInternalFileId());
+                }
+                log.info("Merge MPD of video {} completed." , job.getVideoInternalFileId());
+                //TODO set job as done
             }
         });
     }
 
-    public void mergeMPD(String videoInternalFileId){
+    private static String convertToDashDuration(LocalTime time) {
+        int hours = time.getHour();
+        int minutes = time.getMinute();
+        double seconds = time.getSecond() + (time.getNano() / 1_000_000_000.0);
+
+        StringBuilder duration = new StringBuilder("PT");
+        if (hours > 0) duration.append(hours).append("H");
+        if (minutes > 0) duration.append(minutes).append("M");
+        duration.append(String.format("%.1f", seconds)).append("S");
+
+        return duration.toString();
+    }
+
+    public boolean mergeMPD(String videoInternalFileId) throws Exception {
         List<TranscodeJobTask> tasks = taskRepository.findAllByVideoInternalFileId(videoInternalFileId)
                 .stream()
                 .sorted(Comparator.comparing(TranscodeJobTask::getStartTime))
                 .toList();
+        Optional<VideoTranscodeRequest> transcodeRequestOptional = jobRepository.findByVideoInternalFileId(videoInternalFileId);
+        if(transcodeRequestOptional.isEmpty()){
+            return false;
+        }
+        VideoTranscodeRequest transcodeRequest = transcodeRequestOptional.get();
         TranscodeJobTask firstTask = tasks.get(0);
         String firstMPDFileID = firstTask.getMpdFileId();
         Document firstMPD;
@@ -53,14 +88,40 @@ public class ManifestMergeService {
 
         } catch (Exception e) {
             log.info("Reading MPD file #{} failed. Merging of video #{} will be attempted later" , firstMPDFileID , videoInternalFileId);
+            return false;
         }
-        //TODO Change mediaPresentationDuration of MPD tag to video duration ex PT10M0.0S
-        //TODO loop over rest of transcode tasks ordered by start time and add all their Period tags into the mpd and change the attribute start to corresponding start time based on the slice time chosen
-        tasks.forEach(task -> {
-            ;
-        });
-        //TODO save merged mpd in a local file
-        //TODO upload local mpd to fs
+        Element firstMPDElem = firstMPD.getDocumentElement();
+        firstMPDElem.setAttribute("mediaPresentationDuration" , convertToDashDuration(transcodeRequest.getDurationVideo()));
+        for(int i = 1; i < tasks.size(); i++) {
+            TranscodeJobTask task = tasks.get(i);
+            try {
+                log.info("Reading MPD file #{} of video #{}", task.getMpdFileId(), videoInternalFileId);
+                byte[] firstMPDBytes = fileService.downloadFile(firstMPDFileID);
+                if(firstMPDBytes == null){
+                    throw new Exception();
+                }
+                InputStream inputStream = new ByteArrayInputStream(firstMPDBytes);
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder builder = factory.newDocumentBuilder();
+                Document mpdFile = builder.parse(inputStream);
+                Element periodElem = (Element) mpdFile.getElementsByTagName("Period").item(0);
+                periodElem.setAttribute("id", String.valueOf(i));
+                Node importedNode = firstMPD.importNode(periodElem, true);
+                firstMPDElem.appendChild(importedNode);
+                log.info("Appended Period id #{} to merged MPD of video #{}", i, videoInternalFileId);
+
+            } catch (Exception e) {
+                log.info("Reading MPD file #{} failed. Merging of video #{} will be attempted later", task.getMpdFileId(), videoInternalFileId);
+                return false;
+            }
+        }
+        String fileName = "%s_mpd".formatted(videoInternalFileId);
+        File finalMPD = File.createTempFile(fileName , ".mpd");
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        Transformer transformer = transformerFactory.newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.transform(new DOMSource(firstMPD), new StreamResult(finalMPD));
+        return fileService.uploadFile(finalMPD, fileName, fileName + ".mpd");
     }
 
 }
