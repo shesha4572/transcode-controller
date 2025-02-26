@@ -28,4 +28,5 @@ public class TranscodeJobTask {
     public Boolean isAssignedToWorker;
     public String assignedWorkerNodeId;
     public String mpdFileId;
+    public Integer index;
 }

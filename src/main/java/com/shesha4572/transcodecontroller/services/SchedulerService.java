@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -41,12 +42,13 @@ public class SchedulerService {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 Map<String, Object> map = new HashMap<>();
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
                 map.put("videoInternalFileId" , transcodeJobTask.getVideoInternalFileId());
-                map.put("startTime" , transcodeJobTask.getStartTime().toString());
-                map.put("endTime" , transcodeJobTask.getEndTime().toString());
+                map.put("startTime" , formatter.format(transcodeJobTask.getStartTime()));
+                map.put("endTime" , formatter.format(transcodeJobTask.getEndTime()));
                 map.put("assignedTaskID" , transcodeJobTask.getTaskId());
                 HttpEntity<Map<String, Object>> request = new HttpEntity<>(map, headers);
-                UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl("http://%s.%s:8080/job".formatted(worker.getWorkerPodName() , workerServiceName));
+                UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl("http://%s.%s/job".formatted(worker.getWorkerPodName() , workerServiceName));
                 try {
                     ResponseEntity<String> response = restTemplate.exchange(
                             builder.toUriString(),
