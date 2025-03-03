@@ -84,6 +84,7 @@ public class TranscodeJobService {
             log.info("Task #{} of Video #{} created with Start Time : {} , End Time : {}" , transcodeJobTask.getTaskId() , videoTranscodeRequest.getVideoInternalFileId() , transcodeJobTask.getStartTime() , transcodeJobTask.getEndTime());
             start = start.plus(optimalSlice);
             taskRepository.save(transcodeJobTask);
+            i++;
         }
     }
 
