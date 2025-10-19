@@ -77,7 +77,6 @@ public class ManifestMergeService {
     }
 
     public boolean mergeMPD(String videoInternalFileId) throws Exception {
-        //TODO fix ordering of mpds seems sort doesnt seem to be working
         List<TranscodeJobTask> tasks = taskRepository.findAllByVideoInternalFileId(videoInternalFileId)
                 .stream()
                 .sorted(Comparator.comparing(TranscodeJobTask::getIndex))
