@@ -1,5 +1,6 @@
 package com.shesha4572.transcodecontroller.services;
 
+import com.shesha4572.transcodecontroller.entities.TranscodeJobTask;
 import com.shesha4572.transcodecontroller.entities.WorkerPod;
 import com.shesha4572.transcodecontroller.repositories.TranscodeJobTaskRepository;
 import com.shesha4572.transcodecontroller.repositories.WorkerPodRepository;
@@ -12,10 +13,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
 
 @Service
 @Component
@@ -28,10 +28,11 @@ public class SchedulerService {
     public String workerServiceName;
 
 
-    @Scheduled(fixedDelay = 30000)
+    @Scheduled(fixedDelay = 10000)
     public void scheduleTask(){
         log.info("Scheduling tasks..");
-        taskRepository.findByIsAssignedToWorkerAndTaskCompletedOrderByTaskCreationTimeDesc(Boolean.FALSE , Boolean.FALSE).forEach(transcodeJobTask -> {
+        List<TranscodeJobTask> unassignedTasks = taskRepository.findByIsAssignedToWorkerAndTaskCompletedOrderByTaskCreationTimeAsc(Boolean.FALSE , Boolean.FALSE);
+        unassignedTasks.forEach(transcodeJobTask -> {
             log.info("Task #{} picked for assignment" , transcodeJobTask.getTaskId());
             Optional<WorkerPod> workerOptional = workerPodRepository.findWorkerPodByIsAssignedTaskAndIsAssumedAliveOrderByLastPinged(Boolean.FALSE , Boolean.TRUE);
             if(workerOptional.isPresent()){
@@ -41,12 +42,13 @@ public class SchedulerService {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 Map<String, Object> map = new HashMap<>();
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
                 map.put("videoInternalFileId" , transcodeJobTask.getVideoInternalFileId());
-                map.put("startTime" , transcodeJobTask.getStartTime().toString());
-                map.put("endTime" , transcodeJobTask.getEndTime().toString());
+                map.put("startTime" , formatter.format(transcodeJobTask.getStartTime()));
+                map.put("endTime" , formatter.format(transcodeJobTask.getEndTime()));
                 map.put("assignedTaskID" , transcodeJobTask.getTaskId());
                 HttpEntity<Map<String, Object>> request = new HttpEntity<>(map, headers);
-                UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl("http://%s.%s:8080/job".formatted(worker.getWorkerPodName() , workerServiceName));
+                UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl("http://%s.%s/job".formatted(worker.getWorkerPodName() , workerServiceName));
                 try {
                     ResponseEntity<String> response = restTemplate.exchange(
                             builder.toUriString(),
@@ -58,6 +60,7 @@ public class SchedulerService {
                         transcodeJobTask.setAssignedWorkerNodeId(worker.getWorkerPodName());
                         worker.setAssignedTaskId(transcodeJobTask.getTaskId());
                         worker.setIsAssignedTask(Boolean.TRUE);
+                        transcodeJobTask.setIsAssignedToWorker(Boolean.TRUE);
                         taskRepository.save(transcodeJobTask);
                         workerPodRepository.save(worker);
                     } else {

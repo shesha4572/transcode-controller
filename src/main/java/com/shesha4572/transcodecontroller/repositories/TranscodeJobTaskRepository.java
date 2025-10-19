@@ -8,5 +8,11 @@ import java.util.List;
 
 @Repository
 public interface TranscodeJobTaskRepository extends ListCrudRepository<TranscodeJobTask , String> {
-    List<TranscodeJobTask> findByIsAssignedToWorkerAndTaskCompletedOrderByTaskCreationTimeDesc(Boolean isAssignedToWorker, Boolean taskCompleted);
+    List<TranscodeJobTask> findByIsAssignedToWorkerAndTaskCompletedOrderByTaskCreationTimeAsc(Boolean isAssignedToWorker, Boolean taskCompleted);
+
+    List<TranscodeJobTask> findAllByVideoInternalFileIdAndTaskCompleted(String videoId , Boolean flag);
+
+    List<TranscodeJobTask> findAllByVideoInternalFileId(String videoInternalFileId);
+
+    List<TranscodeJobTask> findByIsAssignedToWorker(Boolean flag);
 }

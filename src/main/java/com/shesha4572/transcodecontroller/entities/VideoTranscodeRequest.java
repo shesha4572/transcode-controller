@@ -24,4 +24,7 @@ public class VideoTranscodeRequest implements Serializable {
     public Boolean isJobComplete;
     public LocalDateTime jobCompletionTime;
     public LocalTime durationVideo;
+    @Indexed
+    public Boolean isServerAwareJobComplete;
+    public String mpdName;
 }

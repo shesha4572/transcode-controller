@@ -36,8 +36,9 @@ public class TranscodeJobService {
                 .videoInternalFileId(transcodeJobRequest.getVideoInternalFileId())
                 .maxResolution(transcodeJobRequest.getMaxResolution())
                 .isJobComplete(Boolean.FALSE)
+                .isServerAwareJobComplete(Boolean.FALSE)
                 .build();
-        String videoURL = videoServerURL + "/" + videoTranscodeRequest.getVideoInternalFileId();
+        String videoURL = videoServerURL + "/api/v1/video/get/" + videoTranscodeRequest.getVideoInternalFileId();
         String videoDurationCommand = "ffmpeg -i %s 2>&1 | grep \"Duration\" | awk '{print $2}' | tr -d ','".formatted(videoURL);
         try {
             ProcessBuilder pb = new ProcessBuilder("/bin/sh" , "-c" , videoDurationCommand);
@@ -65,6 +66,7 @@ public class TranscodeJobService {
         log.info("Optimal Slice Time for Video #{} taken as {}" , videoTranscodeRequest.getVideoInternalFileId() , optimalSlice);
         LocalTime videoLength = videoTranscodeRequest.getDurationVideo();
         LocalTime start = LocalTime.of(0 , 0 ,0);
+        int i = 0;
         while (videoLength.isAfter(start)){
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
             start = LocalTime.parse(start.format(formatter));
@@ -77,14 +79,16 @@ public class TranscodeJobService {
                     .startTime(start)
                     .assignedWorkerNodeId("")
                     .endTime(start.plus(optimalSlice).isAfter(videoLength) ? videoLength : start.plus(optimalSlice))
+                    .index(i)
                     .build();
             log.info("Task #{} of Video #{} created with Start Time : {} , End Time : {}" , transcodeJobTask.getTaskId() , videoTranscodeRequest.getVideoInternalFileId() , transcodeJobTask.getStartTime() , transcodeJobTask.getEndTime());
             start = start.plus(optimalSlice);
             taskRepository.save(transcodeJobTask);
+            i++;
         }
     }
 
-    private Duration getOptimalSlice(LocalTime durationVideo) {
+    public Duration getOptimalSlice(LocalTime durationVideo) {
         return Duration.ofMinutes(2);
     }
 }
